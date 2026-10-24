@@ -1,0 +1,15 @@
+{
+  "name": "CS 복습 상자",
+  "short_name": "CS 복습",
+  "description": "개발자 기본 CS를 리트너 상자 방식으로 복습하는 퀴즈 앱",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EDF0F4",
+  "theme_color": "#2B47C9",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

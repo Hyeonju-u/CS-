@@ -1,0 +1,658 @@
+<title>CS 복습 상자</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2B47C9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 한 줄 기둥. 위에는 탭, 가운데는 인덱스 카드 한 장, 리트너 상자 5칸이 진도를 보여준다. */
+:root {
+  --paper: #EDF0F4;
+  --card: #FFFFFF;
+  --ink: #161D2B;
+  --muted: #5A6476;
+  --line: #D3D9E2;
+  --accent: #2B47C9;
+  --accent-soft: #E2E7FB;
+  --good: #1D7F54;
+  --good-soft: #DCF1E6;
+  --warn: #A86A12;
+  --warn-soft: #F7ECD6;
+  --bad: #B83A33;
+  --bad-soft: #F8E0DE;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0F131B; --card: #171D29; --ink: #E5E9F1; --muted: #949EB1; --line: #283043;
+    --accent: #8197FF; --accent-soft: #212A4A;
+    --good: #4FC58C; --good-soft: #15302A; --warn: #E3AA4E; --warn-soft: #34291A; --bad: #F1756C; --bad-soft: #3A1F22;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0F131B; --card: #171D29; --ink: #E5E9F1; --muted: #949EB1; --line: #283043;
+  --accent: #8197FF; --accent-soft: #212A4A;
+  --good: #4FC58C; --good-soft: #15302A; --warn: #E3AA4E; --warn-soft: #34291A; --bad: #F1756C; --bad-soft: #3A1F22;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.65;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 56px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+code { font-family: var(--font-mono); font-size: 0.9em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, textarea:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+.mono { font-family: var(--font-mono); }
+.label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+/* ── header ── */
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.brand h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+nav { display: flex; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+nav button { border: 0; background: transparent; padding: 6px 12px; border-radius: 6px; font-size: 13.5px; color: var(--muted); }
+nav button[aria-selected="true"] { background: var(--accent); color: var(--card); font-weight: 500; }
+
+/* ── Leitner box strip ── */
+.boxes { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.slot { display: flex; flex-direction: column; gap: 6px; }
+.slot .stack { height: 54px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); position: relative; overflow: hidden; }
+.slot .fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent-soft); border-top: 2px solid var(--accent); transition: height .4s ease; }
+.slot.new .fill { background: var(--line); border-top-color: var(--muted); }
+.slot .count { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-mono); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.slot .cap { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-align: center; line-height: 1.35; }
+.slot .cap b { color: var(--ink); font-weight: 500; display: block; }
+
+/* ── home ── */
+.today { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 22px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.today .nums { display: flex; gap: 28px; }
+.today .num { font-size: 34px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.btn { border: 1px solid var(--line); background: var(--card); padding: 9px 16px; border-radius: 8px; font-weight: 500; font-size: 14px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--card); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .45; cursor: default; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.section-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.section-h h2 { font-size: 16px; font-weight: 700; }
+
+/* ── card ── */
+.session-bar { display: flex; align-items: center; gap: 12px; }
+.progress { flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress > div { height: 100%; background: var(--accent); transition: width .3s ease; }
+.qcard { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 24px 22px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.qmeta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { font-family: var(--font-mono); font-size: 11.5px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.core { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+.chip.good { border-color: var(--muted); }
+.chip.later { border-style: dashed; }
+.chip.box { color: var(--ink); }
+.prompt { font-size: 18px; font-weight: 500; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
+.choices { display: flex; flex-direction: column; gap: 8px; }
+.choice { text-align: left; display: flex; gap: 12px; align-items: flex-start; padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.choice:hover:not(:disabled) { border-color: var(--accent); }
+.choice .k { font-family: var(--font-mono); font-size: 12px; color: var(--muted); min-width: 1.2em; padding-top: 2px; }
+.choice:disabled { cursor: default; }
+.choice.right { border-color: var(--good); background: var(--good-soft); }
+.choice.wrong { border-color: var(--bad); background: var(--bad-soft); }
+.ox { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ox .choice { justify-content: center; font-size: 22px; font-weight: 700; padding: 16px; font-family: var(--font-mono); }
+textarea { width: 100%; min-height: 120px; resize: vertical; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; font-size: 14.5px; }
+.reveal { border-top: 1px dashed var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.verdict { font-weight: 700; }
+.verdict.ok { color: var(--good); }
+.verdict.no { color: var(--bad); }
+.explain { margin: 0; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
+.keypoints { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.keypoints label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line); cursor: pointer; }
+.keypoints input { margin-top: 5px; accent-color: var(--accent); }
+.keypoints label:has(input:checked) { background: var(--good-soft); border-color: transparent; }
+.mine { background: var(--paper); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.grades { display: flex; flex-wrap: wrap; gap: 8px; }
+.grades .btn { flex: 1 1 140px; }
+.btn.fail { border-color: var(--bad); color: var(--bad); }
+.btn.unsure { border-color: var(--warn); color: var(--warn); }
+.btn.pass { border-color: var(--good); color: var(--good); }
+.btn.fail:hover { background: var(--bad-soft); }
+.btn.unsure:hover { background: var(--warn-soft); }
+.btn.pass:hover { background: var(--good-soft); }
+.kbd { font-family: var(--font-mono); font-size: 11px; opacity: .7; margin-left: 6px; }
+
+/* ── map ── */
+.topics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.topic { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.topic h3 { font-size: 16px; }
+.topic p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.tier { display: flex; flex-direction: column; gap: 6px; }
+.tier .row { display: flex; flex-wrap: wrap; gap: 5px; }
+.mastery { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mastery .bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; display: flex; }
+.mastery .bar span { display: block; height: 100%; }
+.topic .btn { align-self: flex-start; padding: 6px 12px; font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* ── data ── */
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { font-size: 16px; }
+.panel textarea { min-height: 140px; font-family: var(--font-mono); font-size: 12px; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.toast { font-size: 13px; color: var(--good); min-height: 1.2em; margin: 0; }
+
+.done { text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.done h2 { font-size: 20px; }
+.tally { display: flex; gap: 20px; flex-wrap: wrap; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.tally b { font-size: 24px; display: block; font-family: var(--font-body); }
+
+@media (max-width: 560px) {
+  .topics { grid-template-columns: minmax(0, 1fr); }
+  .boxes { gap: 4px; }
+  .slot .cap { font-size: 10px; }
+  .qcard { padding: 18px; }
+  .prompt { font-size: 16.5px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>CS 복습 상자</h1>
+      <p>설명할 수 있을 때까지, 잊을 때쯤 다시 묻는다</p>
+    </div>
+    <nav role="tablist" aria-label="화면">
+      <button role="tab" data-tab="review" aria-selected="true">복습</button>
+      <button role="tab" data-tab="map" aria-selected="false">지식 지도</button>
+      <button role="tab" data-tab="data" aria-selected="false">기록</button>
+    </nav>
+  </header>
+
+  <main id="view"></main>
+</div>
+
+<script src="questions.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────────
+// 설정
+// ─────────────────────────────────────────────────────────────
+const INTERVALS = [0, 1, 2, 4, 8, 16];   // 상자 번호(1~5) → 다음 복습까지 며칠
+const NEW_PER_DAY = 10;                  // 하루에 새로 꺼낼 카드 수
+const STORE_KEY = 'cs-review-box-v1';
+const TIER_ORDER = { core: 0, good: 1, later: 2 };
+const TIER_NAME = { core: '핵심', good: '있으면 좋음', later: '나중에' };
+const LEVEL_NAME = { 1: 'L1 알아보기', 2: 'L2 이해', 3: 'L3 설명' };
+const TYPE_NAME = { mc: '객관식', ox: 'O/X', explain: '서술형' };
+
+const TOPICS = window.CS_TOPICS || [];
+const QUESTIONS = window.CS_QUESTIONS || [];
+const topicName = Object.fromEntries(TOPICS.map(t => [t.key, t.name]));
+
+// ─────────────────────────────────────────────────────────────
+// 날짜 (로컬 날짜 기준 YYYY-MM-DD)
+// ─────────────────────────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function addDays(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return t.toISOString().slice(0, 10);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 저장소 — 기록은 이 브라우저의 localStorage 에만 있다
+//   progress[id] = { box, due, seen, right, wrong, last }
+// ─────────────────────────────────────────────────────────────
+function freshState() { return { progress: {}, daily: { date: todayStr(), newCount: 0 } }; }
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return freshState();
+    const s = JSON.parse(raw);
+    if (!s.progress) s.progress = {};
+    if (!s.daily) s.daily = { date: todayStr(), newCount: 0 };
+    return s;
+  } catch (e) { return freshState(); }
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* 저장 불가 환경이면 이번 세션만 유지 */ }
+}
+let state = load();
+function rollDay() {
+  if (state.daily.date !== todayStr()) { state.daily = { date: todayStr(), newCount: 0 }; save(); }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 큐 만들기
+// ─────────────────────────────────────────────────────────────
+function isDue(q) {
+  const p = state.progress[q.id];
+  return p && p.due <= todayStr();
+}
+function isNew(q) { return !state.progress[q.id]; }
+function newOrder(a, b) {
+  return (TIER_ORDER[a.tier] - TIER_ORDER[b.tier]) || (a.level - b.level) || 0;
+}
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function buildQueue(topicKey) {
+  rollDay();
+  const pool = topicKey ? QUESTIONS.filter(q => q.topic === topicKey) : QUESTIONS;
+  const due = shuffle(pool.filter(isDue));
+  const fresh = pool.filter(isNew).sort(newOrder);
+  const newLimit = topicKey ? 10 : Math.max(0, NEW_PER_DAY - state.daily.newCount);
+  return due.concat(fresh.slice(0, newLimit));
+}
+function counts() {
+  rollDay();
+  const due = QUESTIONS.filter(isDue).length;
+  const newLeft = Math.min(QUESTIONS.filter(isNew).length, Math.max(0, NEW_PER_DAY - state.daily.newCount));
+  const boxes = [0, 0, 0, 0, 0, 0];   // 0 = 아직 안 본 카드
+  for (const q of QUESTIONS) { const p = state.progress[q.id]; boxes[p ? p.box : 0]++; }
+  return { due, newLeft, boxes };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 채점 → 상자 이동 (리트너 방식)
+//   fail   : 1번 상자로, 내일 다시. 이번 세션 끝에 한 번 더 나온다
+//   unsure : 상자 그대로, 그 상자 간격 뒤에
+//   pass   : 한 칸 위 상자로, 더 긴 간격 뒤에
+// ─────────────────────────────────────────────────────────────
+function grade(q, result) {
+  const today = todayStr();
+  let p = state.progress[q.id];
+  if (!p) { p = { box: 0, due: today, seen: 0, right: 0, wrong: 0, last: null }; state.daily.newCount++; }
+  p.seen++;
+  p.last = today;
+  if (result === 'fail') { p.box = 1; p.wrong++; }
+  else if (result === 'unsure') { p.box = Math.max(1, p.box); }
+  else { p.box = Math.min(5, p.box + 1); p.right++; }
+  p.due = addDays(today, INTERVALS[p.box]);
+  state.progress[q.id] = p;
+  save();
+  return p;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 화면 렌더링 도우미
+// ─────────────────────────────────────────────────────────────
+const view = document.getElementById('view');
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function fmt(s) {   // 이스케이프 → `코드` → 줄바꿈
+  return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+}
+function boxStrip(boxes) {
+  const total = QUESTIONS.length || 1;
+  const max = Math.max(...boxes, 1);
+  const labels = ['새 카드', '1칸', '2칸', '3칸', '4칸', '5칸'];
+  const caps = ['안 봄', '1일', '2일', '4일', '8일', '16일'];
+  return '<div class="boxes" aria-label="상자별 카드 수">' + boxes.map((n, i) =>
+    `<div class="slot${i === 0 ? ' new' : ''}">
+      <div class="stack"><div class="fill" style="height:${Math.round(n / max * 100)}%"></div><div class="count">${n}</div></div>
+      <div class="cap"><b>${labels[i]}</b>${caps[i]}</div>
+    </div>`).join('') + '</div>';
+}
+
+// ─────────────────────────────────────────────────────────────
+// 탭
+// ─────────────────────────────────────────────────────────────
+let tab = 'review';
+let session = null;   // { queue, idx, requeued:Set, tally:{pass,unsure,fail}, topic }
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  render();
+}
+function render() {
+  if (tab === 'review') session ? renderCard() : renderHome();
+  else if (tab === 'map') renderMap();
+  else renderData();
+}
+
+// ─────────────────────────────────────────────────────────────
+// 복습 홈
+// ─────────────────────────────────────────────────────────────
+function renderHome() {
+  const c = counts();
+  const total = c.due + c.newLeft;
+  view.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <section class="today">
+        <div class="nums">
+          <div><div class="label">복습할 카드</div><div class="num">${c.due}</div></div>
+          <div><div class="label">오늘의 새 카드</div><div class="num">${c.newLeft}</div></div>
+        </div>
+        <button class="btn primary" id="start" ${total ? '' : 'disabled'}>${total ? `${total}장 시작` : '오늘은 끝'}</button>
+      </section>
+      <section style="display:flex;flex-direction:column;gap:10px">
+        <div class="section-h"><h2>리트너 상자</h2><span class="hint">맞히면 오른쪽 칸으로, 틀리면 1칸으로</span></div>
+        ${boxStrip(c.boxes)}
+        <p class="hint">칸 아래 숫자는 다음 복습까지의 간격. 5칸에 있는 카드는 16일 뒤에 다시 나온다. 새 카드는 핵심 → 쉬운 단계 순서로 하루 ${NEW_PER_DAY}장씩 꺼낸다.</p>
+      </section>
+    </div>`;
+  const s = document.getElementById('start');
+  if (s && total) s.addEventListener('click', () => startSession());
+}
+function startSession(topicKey) {
+  const queue = buildQueue(topicKey);
+  if (!queue.length) { tab = 'review'; render(); return; }
+  session = { queue, idx: 0, requeued: new Set(), tally: { pass: 0, unsure: 0, fail: 0 }, topic: topicKey || null };
+  setTab('review');
+}
+
+// ─────────────────────────────────────────────────────────────
+// 카드
+// ─────────────────────────────────────────────────────────────
+let cardState = null;   // { answered, pick, text }
+function renderCard() {
+  if (session.idx >= session.queue.length) return renderDone();
+  const q = session.queue[session.idx];
+  cardState = { answered: false, pick: null, text: '' };
+  const p = state.progress[q.id];
+  const boxLabel = p ? `${p.box}칸` : '새 카드';
+  const pct = Math.round(session.idx / session.queue.length * 100);
+
+  let body = '';
+  if (q.type === 'mc') {
+    body = `<div class="choices">${q.choices.map((c, i) =>
+      `<button class="choice" data-i="${i}"><span class="k">${i + 1}</span><span>${fmt(c)}</span></button>`).join('')}</div>`;
+  } else if (q.type === 'ox') {
+    body = `<div class="ox"><button class="choice" data-i="1" aria-label="O">O</button><button class="choice" data-i="0" aria-label="X">X</button></div>`;
+  } else {
+    body = `<label class="label" for="mine">내 설명 써보기 (머릿속으로만 해도 된다)</label>
+      <textarea id="mine" placeholder="다른 사람에게 설명한다고 생각하고 써보자"></textarea>
+      <div><button class="btn primary" id="showAns">모범 답안 보기</button></div>`;
+  }
+
+  view.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="session-bar">
+        <span class="label">${session.topic ? esc(topicName[session.topic]) + ' · ' : ''}${session.idx + 1} / ${session.queue.length}</span>
+        <div class="progress"><div style="width:${pct}%"></div></div>
+        <button class="btn" id="quit" style="padding:5px 10px;font-size:12.5px">그만하기</button>
+      </div>
+      <article class="qcard">
+        <div class="qmeta">
+          <span class="label">${esc(topicName[q.topic] || q.topic)} · ${esc(q.concept)}</span>
+        </div>
+        <div class="qmeta">
+          <span class="chip ${q.tier}">${TIER_NAME[q.tier]}</span>
+          <span class="chip">${LEVEL_NAME[q.level]}</span>
+          <span class="chip">${TYPE_NAME[q.type]}</span>
+          <span class="chip box">${boxLabel}</span>
+        </div>
+        <p class="prompt">${fmt(q.prompt)}</p>
+        ${body}
+        <div id="reveal"></div>
+      </article>
+    </div>`;
+
+  document.getElementById('quit').addEventListener('click', () => { session = null; render(); });
+  if (q.type === 'explain') {
+    document.getElementById('showAns').addEventListener('click', () => revealExplain(q));
+  } else {
+    view.querySelectorAll('.choice').forEach(b => b.addEventListener('click', () => answerChoice(q, Number(b.dataset.i))));
+  }
+}
+
+function answerChoice(q, i) {
+  if (cardState.answered) return;
+  cardState.answered = true;
+  const correctIdx = q.type === 'ox' ? (q.answer ? 1 : 0) : q.answer;
+  const ok = i === correctIdx;
+  view.querySelectorAll('.choice').forEach(b => {
+    const bi = Number(b.dataset.i);
+    b.disabled = true;
+    if (bi === correctIdx) b.classList.add('right');
+    else if (bi === i) b.classList.add('wrong');
+  });
+  const grades = ok
+    ? `<button class="btn pass" data-g="pass">확실히 알았음<span class="kbd">1</span></button>
+       <button class="btn unsure" data-g="unsure">찍어서 맞힘<span class="kbd">2</span></button>`
+    : `<button class="btn fail" data-g="fail">다음 (내일 다시)<span class="kbd">Enter</span></button>`;
+  document.getElementById('reveal').innerHTML = `
+    <div class="reveal">
+      <div class="verdict ${ok ? 'ok' : 'no'}">${ok ? '정답' : '오답'}</div>
+      <p class="explain">${fmt(q.explain)}</p>
+      <div class="grades">${grades}</div>
+    </div>`;
+  bindGrades(q);
+}
+
+function revealExplain(q) {
+  if (cardState.answered) return;
+  cardState.answered = true;
+  const ta = document.getElementById('mine');
+  cardState.text = ta.value.trim();
+  ta.disabled = true;
+  document.getElementById('showAns').hidden = true;
+  document.getElementById('reveal').innerHTML = `
+    <div class="reveal">
+      <div class="label">내 설명에 들어있던 것을 체크</div>
+      <ul class="keypoints">${q.keypoints.map((k, i) =>
+        `<li><label><input type="checkbox" id="kp${i}"><span>${fmt(k)}</span></label></li>`).join('')}</ul>
+      <p class="explain">${fmt(q.explain)}</p>
+      <p class="hint" id="kpHint">핵심 요소를 다 말할 수 있어야 "설명할 수 있음"이다.</p>
+      <div class="grades">
+        <button class="btn fail" data-g="fail">설명 못함<span class="kbd">1</span></button>
+        <button class="btn unsure" data-g="unsure">일부만<span class="kbd">2</span></button>
+        <button class="btn pass" data-g="pass">다 설명함<span class="kbd">3</span></button>
+      </div>
+    </div>`;
+  const boxes = view.querySelectorAll('.keypoints input');
+  const hint = document.getElementById('kpHint');
+  boxes.forEach(b => b.addEventListener('change', () => {
+    const n = [...boxes].filter(x => x.checked).length;
+    const total = boxes.length;
+    hint.textContent = n === total ? `${n}/${total} — 다 들어있다.`
+      : n === 0 ? `0/${total} — 모범 답안을 소리 내어 한 번 설명해보고 넘어가자.`
+      : `${n}/${total} — 빠진 요소가 있다면 "일부만"이 정직한 선택.`;
+  }));
+  bindGrades(q);
+}
+
+function bindGrades(q) {
+  view.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => next(q, b.dataset.g)));
+  const first = view.querySelector('[data-g]');
+  if (first) first.focus({ preventScroll: true });
+}
+
+function next(q, result) {
+  grade(q, result);
+  session.tally[result]++;
+  if (result === 'fail' && !session.requeued.has(q.id)) {
+    session.requeued.add(q.id);
+    session.queue.push(q);   // 세션 끝에 한 번 더
+  }
+  session.idx++;
+  renderCard();
+  window.scrollTo({ top: 0 });
+}
+
+// 키보드: 숫자로 선택/채점, Enter = 첫 번째 채점 버튼
+document.addEventListener('keydown', e => {
+  if (tab !== 'review' || !session || !cardState) return;
+  if (e.target.tagName === 'TEXTAREA') return;
+  const q = session.queue[session.idx];
+  if (!q) return;
+  if (!cardState.answered && q.type !== 'explain') {
+    const n = Number(e.key);
+    if (q.type === 'mc' && n >= 1 && n <= q.choices.length) answerChoice(q, n - 1);
+    if (q.type === 'ox' && (e.key === 'o' || e.key === 'O')) answerChoice(q, 1);
+    if (q.type === 'ox' && (e.key === 'x' || e.key === 'X')) answerChoice(q, 0);
+    return;
+  }
+  if (cardState.answered) {
+    const btns = [...view.querySelectorAll('[data-g]')];
+    const n = Number(e.key);
+    if (n >= 1 && n <= btns.length) { e.preventDefault(); btns[n - 1].click(); }
+  }
+});
+
+function renderDone() {
+  const t = session.tally;
+  const c = counts();
+  view.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:22px">
+      <section class="done">
+        <h2>이번 묶음 끝</h2>
+        <div class="tally">
+          <div><b style="color:var(--good)">${t.pass}</b>알았음</div>
+          <div><b style="color:var(--warn)">${t.unsure}</b>애매함</div>
+          <div><b style="color:var(--bad)">${t.fail}</b>몰랐음</div>
+        </div>
+        <p class="hint">틀린 카드는 내일 1칸에서 다시 나온다. 지금 할 일 하나: 오늘 틀린 개념 중 하나를 책이나 노트 없이 소리 내어 설명해보기.</p>
+        <div class="row-btns">
+          <button class="btn primary" id="home">처음으로</button>
+          <button class="btn" id="tomap">지식 지도 보기</button>
+        </div>
+      </section>
+      ${boxStrip(c.boxes)}
+    </div>`;
+  session = null;
+  document.getElementById('home').addEventListener('click', () => render());
+  document.getElementById('tomap').addEventListener('click', () => setTab('map'));
+}
+
+// ─────────────────────────────────────────────────────────────
+// 지식 지도
+// ─────────────────────────────────────────────────────────────
+function renderMap() {
+  const html = TOPICS.map(t => {
+    const qs = QUESTIONS.filter(q => q.topic === t.key);
+    let unseen = 0, learning = 0, solid = 0;
+    for (const q of qs) {
+      const p = state.progress[q.id];
+      if (!p) unseen++; else if (p.box >= 4) solid++; else learning++;
+    }
+    const n = qs.length || 1;
+    const tiers = ['core', 'good', 'later'].map(k => (t.concepts[k] || []).length ? `
+      <div class="tier"><span class="label">${TIER_NAME[k]}</span>
+        <div class="row">${t.concepts[k].map(c => `<span class="chip ${k}">${esc(c)}</span>`).join('')}</div>
+      </div>` : '').join('');
+    return `
+      <article class="topic">
+        <h3>${esc(t.name)}</h3>
+        <p>${esc(t.why)}</p>
+        ${tiers}
+        <div class="mastery">
+          <div class="bar" aria-hidden="true">
+            <span style="width:${solid / n * 100}%;background:var(--good)"></span>
+            <span style="width:${learning / n * 100}%;background:var(--accent)"></span>
+          </div>
+          <span>${solid}/${qs.length}</span>
+        </div>
+        <button class="btn" data-topic="${t.key}" ${qs.length ? '' : 'disabled'}>이 주제만 풀기</button>
+      </article>`;
+  }).join('');
+  view.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="section-h"><h2>개발자 기본 CS 지도</h2>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--good)"></i>4칸 이상 (안정)</span>
+          <span><i class="sw" style="background:var(--accent)"></i>익히는 중</span>
+          <span><i class="sw" style="background:var(--line)"></i>안 봄</span>
+        </div>
+      </div>
+      <p class="hint">핵심부터 채우고, "있으면 좋음"은 핵심이 4칸에 올라간 뒤에, "나중에"는 필요해질 때 보면 된다.</p>
+      <div class="topics">${html}</div>
+    </div>`;
+  view.querySelectorAll('[data-topic]').forEach(b => b.addEventListener('click', () => startSession(b.dataset.topic)));
+}
+
+// ─────────────────────────────────────────────────────────────
+// 기록 백업/복원
+// ─────────────────────────────────────────────────────────────
+function renderData() {
+  const seen = Object.keys(state.progress).length;
+  view.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="panel">
+        <h2>기록 백업</h2>
+        <p class="hint">풀이 기록은 이 브라우저에만 저장된다. 브라우저 데이터를 지우면 사라지니 가끔 복사해서 파일로 보관해두자. 지금 ${seen}장의 기록이 있다.</p>
+        <textarea id="exp" readonly>${esc(JSON.stringify(state, null, 1))}</textarea>
+        <div class="row-btns"><button class="btn" id="copy">복사</button></div>
+        <p class="toast" id="copyMsg"></p>
+      </section>
+      <section class="panel">
+        <h2>기록 복원</h2>
+        <p class="hint">백업해둔 JSON을 붙여넣고 복원을 누르면 지금 기록을 덮어쓴다.</p>
+        <textarea id="imp" placeholder='{"progress": { ... }, "daily": { ... }}'></textarea>
+        <div class="row-btns"><button class="btn" id="doImp">복원</button></div>
+        <p class="toast" id="impMsg"></p>
+      </section>
+      <section class="panel">
+        <h2>처음부터 다시</h2>
+        <p class="hint">모든 카드를 "새 카드"로 되돌린다.</p>
+        <div class="row-btns"><button class="btn fail" id="reset">기록 초기화</button></div>
+        <p class="toast" id="resetMsg"></p>
+      </section>
+    </div>`;
+
+  document.getElementById('copy').addEventListener('click', () => {
+    const ta = document.getElementById('exp');
+    const msg = document.getElementById('copyMsg');
+    const fallback = () => { ta.select(); msg.textContent = '선택해두었다. Ctrl/⌘ + C로 복사하자.'; };
+    try {
+      navigator.clipboard.writeText(ta.value).then(() => { msg.textContent = '복사했다.'; }, fallback);
+    } catch (e) { fallback(); }
+  });
+
+  document.getElementById('doImp').addEventListener('click', () => {
+    const msg = document.getElementById('impMsg');
+    try {
+      const s = JSON.parse(document.getElementById('imp').value);
+      if (!s || typeof s.progress !== 'object') throw new Error();
+      state = { progress: s.progress, daily: s.daily || { date: todayStr(), newCount: 0 } };
+      save();
+      msg.style.color = 'var(--good)';
+      msg.textContent = `복원했다. ${Object.keys(state.progress).length}장의 기록.`;
+    } catch (e) {
+      msg.style.color = 'var(--bad)';
+      msg.textContent = 'JSON 형식이 아니거나 progress 항목이 없다. 백업한 내용을 그대로 붙여넣었는지 확인하자.';
+    }
+  });
+
+  let armed = false;
+  const rb = document.getElementById('reset');
+  rb.addEventListener('click', () => {
+    const msg = document.getElementById('resetMsg');
+    if (!armed) {
+      armed = true;
+      rb.textContent = '정말 초기화 (한 번 더 누르기)';
+      msg.style.color = 'var(--bad)';
+      msg.textContent = '되돌릴 수 없다. 백업을 먼저 해두자.';
+      return;
+    }
+    state = freshState(); save();
+    renderData();
+    document.getElementById('resetMsg').textContent = '초기화했다.';
+  });
+}
+
+render();
+
+// 앱 설치(PWA)용 서비스 워커 등록. http(s) 주소에서만 동작하고, 파일을 직접 열면 조용히 건너뛴다.
+try {
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+} catch (e) { /* 지원하지 않는 환경 */ }
+</script>
