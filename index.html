@@ -140,6 +140,30 @@ textarea { width: 100%; min-height: 120px; resize: vertical; padding: 12px; bord
 .mastery .bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; display: flex; }
 .mastery .bar span { display: block; height: 100%; }
 .topic .btn { align-self: flex-start; padding: 6px 12px; font-size: 13px; }
+.topic.wide { grid-column: 1 / -1; }
+.road { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.road details { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); min-width: 0; }
+.road summary { cursor: pointer; list-style: none; padding: 10px 12px; display: flex; align-items: baseline; gap: 10px; font-weight: 500; }
+.road summary::-webkit-details-marker { display: none; }
+.road summary::before { content: "▸"; color: var(--muted); transition: transform .15s ease; display: inline-block; }
+.road details[open] summary::before { transform: rotate(90deg); }
+.road summary .stage { flex: 1; }
+.road summary .cnt { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.road .inner { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.road .goal { margin: 0; font-size: 13.5px; color: var(--ink); }
+.road .tests { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.tblwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+.road table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px; }
+.road th, .road td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.road tr:last-child td { border-bottom: 0; }
+.road th { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0.04em; }
+.road td.file { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.road td.fn { font-family: var(--font-mono); font-size: 12px; min-width: 130px; }
+.road td.fn code { background: none; padding: 0; }
+.kind { font-family: var(--font-mono); font-size: 11px; padding: 1px 7px; border-radius: 99px; white-space: nowrap; }
+.kind.add { background: var(--accent-soft); color: var(--accent); }
+.kind.mod { background: var(--warn-soft); color: var(--warn); }
+.kind.new { background: var(--good-soft); color: var(--good); }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
@@ -547,11 +571,33 @@ function renderMap() {
       <div class="tier"><span class="label">${TIER_NAME[k]}</span>
         <div class="row">${t.concepts[k].map(c => `<span class="chip ${k}">${esc(c)}</span>`).join('')}</div>
       </div>` : '').join('');
+    const KIND = { '추가': 'add', '수정': 'mod', '새로': 'new' };
+    const road = t.roadmap ? `
+      <div class="road">
+        <span class="label">단계별 구현 지도 · 어느 파일의 어느 함수를 바꾸나</span>
+        ${t.roadmap.map(s => `
+          <details>
+            <summary><span class="stage">${esc(s.stage)}</span><span class="cnt">${s.items.length}곳</span></summary>
+            <div class="inner">
+              <p class="goal">${fmt(s.goal)}</p>
+              <div class="tblwrap"><table>
+                <thead><tr><th>파일</th><th>함수 / 위치</th><th>구분</th><th>할 일</th></tr></thead>
+                <tbody>${s.items.map(it => `<tr>
+                  <td class="file">${esc(it.file)}</td>
+                  <td class="fn">${fmt(it.fn)}</td>
+                  <td><span class="kind ${KIND[it.kind] || ''}">${esc(it.kind)}</span></td>
+                  <td>${fmt(it.what)}</td></tr>`).join('')}</tbody>
+              </table></div>
+              <p class="tests"><span class="label">통과할 테스트</span> ${esc(s.tests)}</p>
+            </div>
+          </details>`).join('')}
+      </div>` : '';
     return `
-      <article class="topic">
+      <article class="topic${t.roadmap ? ' wide' : ''}">
         <h3>${esc(t.name)}</h3>
         <p>${esc(t.why)}</p>
         ${tiers}
+        ${road}
         <div class="mastery">
           <div class="bar" aria-hidden="true">
             <span style="width:${solid / n * 100}%;background:var(--good)"></span>

@@ -308,10 +308,10 @@ window.CS_QUESTIONS = [
   // ───────────────────────── 자료구조 ─────────────────────────
   {
     id: 'ds-01', topic: 'ds', concept: '배열 vs 연결 리스트', tier: 'core', level: 1, type: 'mc',
-    prompt: 'i번째 원소에 접근하는 시간복잡도로 올바른 것은?',
-    choices: ['배열 O(1), 연결 리스트 O(1)', '배열 O(n), 연결 리스트 O(1)', '배열 O(1), 연결 리스트 O(n)', '둘 다 O(log n)'],
+    prompt: '같은 값 [10, 20, 30, 40, 50]을 두 방식으로 저장했다.\n· 배열: 메모리에 칸이 붙어서 연속으로 놓여 있다 (시작 주소 1000, 한 칸 4바이트)\n· 연결 리스트: 노드가 메모리 여기저기 흩어져 있고, 각 노드가 다음 노드의 주소(next)만 알고 있다\n\n둘 다 처음부터 i번째 원소를 꺼내려고 한다. i가 커질수록 걸리는 시간은 어떻게 될까?',
+    choices: ['배열 O(1), 연결 리스트 O(1) — 둘 다 i와 상관없이 일정', '배열 O(n), 연결 리스트 O(1)', '배열 O(1), 연결 리스트 O(n) — 리스트만 i에 비례해서 늘어남', '둘 다 O(log n)'],
     answer: 2,
-    explain: '배열은 원소가 연속으로 있어서 "시작 주소 + i × 원소 크기"로 바로 계산한다. 연결 리스트는 head부터 next를 i번 따라가야 한다. 대신 연결 리스트는 위치를 알고 있으면 중간 삽입/삭제가 O(1).'
+    explain: '배열: 원소가 붙어 있어서 주소를 계산 한 번으로 구한다.\n· arr[3]의 주소 = 1000 + 3 × 4 = 1012\n· arr[999]의 주소 = 1000 + 999 × 4 = 4996\ni가 3이든 999든 곱셈 하나, 덧셈 하나. 일이 i와 상관없이 일정하니 O(1).\n\n연결 리스트: 노드 위치를 계산할 방법이 없어서 head부터 next를 따라가야 한다.\n· 3번째(40) → 10 → 20 → 30 → 40, 3번 이동\n· 999번째 → 999번 이동\n이동 횟수가 i에 비례하고, 최악은 끝 원소라 O(n).\n\n대신 연결 리스트는 위치를 이미 알고 있으면 중간 삽입/삭제가 O(1)이다. 배열은 뒤 원소들을 한 칸씩 밀어야 해서 O(n).'
   },
   {
     id: 'ds-02', topic: 'ds', concept: '스택과 큐', tier: 'core', level: 1, type: 'mc',
@@ -620,3 +620,497 @@ window.CS_QUESTIONS = [
     explain: '`no-store`는 아예 저장하지 말라는 뜻. 헷갈리기 쉬운 `no-cache`는 저장은 해도 되지만 쓰기 전에 서버에 유효한지 확인하라는 뜻이다. 개인 정보가 담긴 응답에는 no-store를 쓴다.'
   }
 ];
+
+// =====================================================================
+// 핀토스 (KAIST x86-64) — Project 1 Threads / Project 2 User Programs
+// ---------------------------------------------------------------------
+// roadmap: 단계별로 어느 파일의 어느 함수를 어떻게 바꾸는지.
+//   kind: '추가' = 구조체 필드/전역 변수 추가, '수정' = 이미 있는 함수 고치기, '새로' = 새 함수 만들기
+// 함수 이름 중 compare_ticks, compare_pr 같은 것은 직접 지은 이름이라 팀마다 다를 수 있다.
+// =====================================================================
+
+window.CS_TOPICS.push(
+  {
+    key: 'p1', name: '핀토스 Threads',
+    why: '잠들기와 깨우기, 우선순위 줄 세우기, 우선순위 빌려주기. 누가 언제 thread_block / thread_unblock, sema_down / sema_up을 부르는지가 핵심.',
+    concepts: {
+      core: ['Alarm Clock', 'Priority Scheduling', '동기화 우선순위', 'Priority Donation'],
+      good: ['인터럽트 끄기 vs 락', 'condvar 정렬'],
+      later: ['MLFQS', '고정소수점']
+    },
+    roadmap: [
+      {
+        stage: '1. Alarm Clock',
+        goal: '바쁜 대기를 없애고, 잠든 스레드는 BLOCKED로 두었다가 때가 되면 깨운다.',
+        tests: 'alarm-single, alarm-multiple, alarm-simultaneous, alarm-zero, alarm-negative',
+        items: [
+          { file: 'threads/thread.h', fn: 'struct thread', kind: '추가', what: '`int64_t wakeup_tick` (깰 절대 시각)' },
+          { file: 'devices/timer.c', fn: 'sleep_list', kind: '추가', what: '잠든 스레드 목록. 선언하고 `timer_init`(또는 `thread_init`)에서 `list_init`. thread.c에 둬도 된다' },
+          { file: 'devices/timer.c', fn: 'compare_ticks', kind: '새로', what: '`wakeup_tick`이 작은 쪽이 앞. `list_less_func` 모양' },
+          { file: 'devices/timer.c', fn: 'timer_sleep()', kind: '수정', what: 'while + `thread_yield` 삭제 → 깰 시각 = `timer_ticks() + ticks` 저장, 인터럽트 끄고 `list_insert_ordered`, `thread_block()`, 인터럽트 복원' },
+          { file: 'devices/timer.c', fn: 'timer_interrupt()', kind: '수정', what: '`ticks++` 뒤, 맨 앞부터 `wakeup_tick <= ticks`인 스레드를 `list_pop_front` + `thread_unblock`. 깰 시각이 안 된 첫 스레드에서 멈춤' }
+        ]
+      },
+      {
+        stage: '2. Priority Scheduling',
+        goal: 'ready_list를 우선순위 순으로 유지하고, 더 높은 스레드가 READY가 되면 바로 CPU를 넘긴다.',
+        tests: 'alarm-priority, priority-change, priority-fifo, priority-preempt',
+        items: [
+          { file: 'threads/thread.c', fn: 'compare_pr', kind: '새로', what: '`priority`가 큰 쪽이 앞' },
+          { file: 'threads/thread.c', fn: 'priority_yield', kind: '새로', what: 'ready_list 맨 앞이 현재보다 높으면 `thread_yield()`. 인터럽트 핸들러 안이면 `intr_yield_on_return()`' },
+          { file: 'threads/thread.c', fn: 'thread_unblock()', kind: '수정', what: '`list_push_back` → `list_insert_ordered(..., compare_pr, NULL)`' },
+          { file: 'threads/thread.c', fn: 'thread_yield()', kind: '수정', what: '같은 변경 (ready_list에 들어가는 두 번째 입구)' },
+          { file: 'threads/thread.c', fn: 'thread_create()', kind: '수정', what: '`thread_unblock` 뒤 `priority_yield()`' },
+          { file: 'threads/thread.c', fn: 'thread_set_priority()', kind: '수정', what: '값을 바꾼 뒤 `priority_yield()`' }
+        ]
+      },
+      {
+        stage: '3. 동기화 우선순위',
+        goal: '세마포어, 락, 조건 변수에서 기다리던 스레드 중 우선순위가 가장 높은 것부터 깨운다.',
+        tests: 'priority-sema, priority-condvar',
+        items: [
+          { file: 'threads/synch.c', fn: 'sema_down()', kind: '수정', what: 'waiters에 `list_insert_ordered(..., compare_pr)`' },
+          { file: 'threads/synch.c', fn: 'sema_up()', kind: '수정', what: '꺼내기 전에 `list_sort(&sema->waiters, compare_pr)`, `thread_unblock` 뒤 `priority_yield()`' },
+          { file: 'threads/synch.c', fn: 'compare_sema', kind: '새로', what: '두 `semaphore_elem`의 `semaphore.waiters` 맨 앞 스레드 priority 비교' },
+          { file: 'threads/synch.c', fn: 'cond_signal()', kind: '수정', what: '`list_sort(&cond->waiters, compare_sema)` 뒤 `list_pop_front`' }
+        ]
+      },
+      {
+        stage: '4. Priority Donation',
+        goal: '높은 스레드가 낮은 스레드의 락을 기다리면 우선순위를 빌려주고, 락을 풀면 돌려받는다.',
+        tests: 'priority-donate-one, -multiple, -multiple2, -nest, -chain, -sema, -lower',
+        items: [
+          { file: 'threads/thread.h', fn: 'struct thread', kind: '추가', what: '`init_priority`(원래 값), `wait_on_lock`(내가 기다리는 락), `donations`(나에게 기부한 스레드 목록), `donation_elem`' },
+          { file: 'threads/thread.c', fn: 'init_thread()', kind: '수정', what: '4개 필드 초기화 (`list_init(&t->donations)` 포함)' },
+          { file: 'threads/synch.c', fn: 'lock_acquire()', kind: '수정', what: 'holder가 있으면 `wait_on_lock = lock`, holder의 donations에 `donation_elem` 추가, `wait_on_lock → holder` 사슬을 따라 최대 8단계 기부. `sema_down` 뒤 `wait_on_lock = NULL`, `holder = 나`' },
+          { file: 'threads/synch.c', fn: 'lock_release()', kind: '수정', what: 'donations에서 `wait_on_lock == lock`인 기부자만 제거 → priority 재계산 → `holder = NULL`, `sema_up`' },
+          { file: 'threads/thread.c', fn: '재계산 함수', kind: '새로', what: '`priority = max(init_priority, 남은 기부자들의 priority)`. 정렬이 아니라 최댓값 찾기' },
+          { file: 'threads/thread.c', fn: 'thread_set_priority()', kind: '수정', what: '`init_priority`만 바꾸고 재계산 → `priority_yield()`' }
+        ]
+      },
+      {
+        stage: '5. MLFQS (나중에)',
+        goal: '우선순위를 사용자가 정하지 않고, CPU를 얼마나 썼는지로 자동 계산한다.',
+        tests: 'mlfqs-*',
+        items: [
+          { file: 'threads/thread.h', fn: 'struct thread', kind: '추가', what: '`nice`, `recent_cpu`' },
+          { file: 'threads/fixed-point.h', fn: '새 파일', kind: '새로', what: '17.14 고정소수점 연산 매크로' },
+          { file: 'threads/thread.c', fn: 'load_avg', kind: '추가', what: '전역 변수 + 계산 함수들' },
+          { file: 'devices/timer.c', fn: 'timer_interrupt()', kind: '수정', what: '매 틱 실행 중인 스레드 `recent_cpu + 1`, 4틱마다 모든 priority, 1초마다 `load_avg`와 `recent_cpu` 재계산' },
+          { file: 'threads/synch.c', fn: 'lock_acquire/release', kind: '수정', what: '`thread_mlfqs`면 기부 건너뛰기' }
+        ]
+      }
+    ]
+  },
+  {
+    key: 'p2', name: '핀토스 User Programs',
+    why: '유저 프로그램을 실행하고, 시스템 콜로 커널에 일을 시키고, 프로세스를 만들고 기다린다. 커널은 유저가 넘긴 것을 절대 믿지 않는다.',
+    concepts: {
+      core: ['Argument Passing', '시스템 콜 핸들러', '유저 메모리 검사', '파일 시스템 콜', 'fork', 'exec', 'wait'],
+      good: ['실행 파일 쓰기 금지', '자원 정리'],
+      later: ['페이지 폴트 기반 검사']
+    },
+    roadmap: [
+      {
+        stage: '1. Argument Passing',
+        goal: '"echo x y" 같은 명령어를 쪼개서 유저 스택에 쌓고, main(argc, argv)가 받을 수 있게 레지스터를 맞춘다.',
+        tests: 'args-none, args-single, args-multiple, args-many, args-dbl-space',
+        items: [
+          { file: 'userprog/process.c', fn: 'process_create_initd()', kind: '수정', what: '스레드 이름을 첫 단어(프로그램 이름)로. 종료 메시지가 이 이름으로 찍힌다' },
+          { file: 'userprog/process.c', fn: 'process_exec()', kind: '수정', what: '`strtok_r`로 공백 기준 쪼개기 → `argv[]`, `argc` 만들고 첫 단어로 `load()`' },
+          { file: 'userprog/process.c', fn: '스택 쌓기 함수', kind: '새로', what: '문자열 → 8바이트 정렬 패딩 → `argv[argc] = NULL` → `argv[argc-1]`~`argv[0]` 주소 → 가짜 리턴 주소 0' },
+          { file: 'userprog/process.c', fn: 'process_exec()', kind: '수정', what: '`_if.R.rdi = argc`, `_if.R.rsi = argv[0]이 있는 주소`, `_if.rsp` 갱신' },
+          { file: 'userprog/process.c', fn: 'process_wait()', kind: '수정', what: '임시로 바로 -1을 반환하지 않게 (긴 루프). 커널이 먼저 꺼지는 것 방지. 5단계에서 진짜 구현' }
+        ]
+      },
+      {
+        stage: '2. 시스템 콜 창구 + halt, exit',
+        goal: '시스템 콜 번호로 갈라서 처리하고, 결과를 rax로 돌려준다.',
+        tests: 'halt, exit',
+        items: [
+          { file: 'userprog/syscall.c', fn: 'syscall_handler()', kind: '수정', what: '`switch (f->R.rax)`. 인자는 `rdi, rsi, rdx, r10, r8, r9`, 반환값은 `f->R.rax`' },
+          { file: 'userprog/syscall.c', fn: 'halt', kind: '새로', what: '`power_off()`' },
+          { file: 'userprog/syscall.c', fn: 'exit', kind: '새로', what: '종료 상태 저장, `"%s: exit(%d)\\n"` 출력, `thread_exit()`' }
+        ]
+      },
+      {
+        stage: '3. 유저 메모리 검사',
+        goal: '잘못된 포인터가 와도 커널은 죽지 않고 그 프로세스만 exit(-1).',
+        tests: 'bad-*, *-bad-ptr, *-null, *-boundary',
+        items: [
+          { file: 'userprog/syscall.c', fn: 'readable_string / readable_buffer', kind: '새로', what: 'NULL인지, `is_user_vaddr`, `pml4_get_page`로 매핑 확인. 버퍼는 끝 주소까지. 실패면 `exit(-1)`' },
+          { file: 'userprog/exception.c', fn: 'page_fault()', kind: '수정', what: '유저 쪽 잘못된 접근이면 커널 패닉 대신 `exit(-1)`' }
+        ]
+      },
+      {
+        stage: '4. 파일 시스템 콜',
+        goal: '프로세스마다 fd 번호와 열린 파일을 연결하는 표를 두고, 기존 filesys 함수를 연결한다.',
+        tests: 'create-*, open-*, read-*, write-*, close-*, filesys/base/*',
+        items: [
+          { file: 'threads/thread.h', fn: 'struct thread', kind: '추가', what: 'fd 테이블(`struct file *` 배열)과 다음 fd 번호. 0, 1은 콘솔이라 2부터' },
+          { file: 'userprog/syscall.c', fn: 'filesys_lock', kind: '추가', what: '전역 락. 파일 시스템 호출을 감싼다 (filesys 코드에는 동기화가 없다)' },
+          { file: 'userprog/syscall.c', fn: 'create, remove, open, close', kind: '새로', what: '`filesys_create`, `filesys_remove`, `filesys_open` + fd 등록, `file_close` + fd 해제' },
+          { file: 'userprog/syscall.c', fn: 'read, write', kind: '새로', what: 'fd 0 읽기는 `input_getc()`, fd 1 쓰기는 `putbuf()`, 나머지는 `file_read` / `file_write`' },
+          { file: 'userprog/syscall.c', fn: 'filesize, seek, tell', kind: '새로', what: '`file_length`, `file_seek`, `file_tell`' }
+        ]
+      },
+      {
+        stage: '5. fork / exec / wait',
+        goal: '프로세스를 복제하고, 다른 프로그램으로 바꾸고, 자식이 끝날 때까지 기다려 종료 상태를 받는다.',
+        tests: 'fork-*, exec-*, wait-*, multi-recurse, multi-child-fd',
+        items: [
+          { file: 'threads/thread.h', fn: 'struct thread', kind: '추가', what: '자식 리스트 + `child_elem`, `exit_status`, `fork_sema`, `wait_sema`, 자식 정리 허락용 세마포어, `parent_if`' },
+          { file: 'userprog/process.c', fn: 'process_fork()', kind: '수정', what: '부모의 `intr_frame`(syscall의 `f`)을 넘기고, 자식을 만든 뒤 `sema_down(fork_sema)`로 복제 완료까지 대기' },
+          { file: 'userprog/process.c', fn: '__do_fork()', kind: '수정', what: '`parent_if` 복사 후 `if_.R.rax = 0`, `pml4_for_each(..., duplicate_pte, ...)`로 메모리 복제, `file_duplicate`로 fd 복제, 끝나면 `sema_up`' },
+          { file: 'userprog/process.c', fn: 'duplicate_pte()', kind: '수정', what: '커널 주소면 건너뜀 → `palloc_get_page(PAL_USER)` + `memcpy` + `pml4_set_page`(writable 유지)' },
+          { file: 'userprog/syscall.c', fn: 'exec', kind: '새로', what: '명령어 문자열을 커널 페이지에 복사 → `process_exec`. 돌아오면 실패니까 `exit(-1)`' },
+          { file: 'userprog/process.c', fn: 'process_wait()', kind: '수정', what: '직속 자식 찾기 → `sema_down(wait_sema)` → `exit_status` 회수 → 리스트에서 제거 → 자식 정리 허락' },
+          { file: 'userprog/process.c', fn: 'process_exit()', kind: '수정', what: '열린 파일 모두 닫기, 부모 깨우기(`sema_up`), 부모가 회수할 때까지 대기' }
+        ]
+      },
+      {
+        stage: '6. 실행 파일 쓰기 금지',
+        goal: '실행 중인 프로그램 파일이 수정되지 않게 막는다.',
+        tests: 'rox-simple, rox-child, rox-multichild',
+        items: [
+          { file: 'userprog/process.c', fn: 'load()', kind: '수정', what: '`file_deny_write()` 후 끝에서 닫지 말고 스레드에 보관 (`current_file` 등)' },
+          { file: 'userprog/process.c', fn: 'process_exit()', kind: '수정', what: '보관한 실행 파일 `file_close()`. 닫을 때 쓰기 금지가 풀린다' }
+        ]
+      }
+    ]
+  }
+);
+
+window.CS_QUESTIONS.push(
+  // ───────────────────────── 핀토스 Threads ─────────────────────────
+  {
+    id: 'p1-01', topic: 'p1', concept: 'Alarm Clock', tier: 'core', level: 1, type: 'mc',
+    prompt: '처음 받은 코드의 `timer_sleep()`은 이렇게 생겼다.\n`while (timer_elapsed (start) < ticks)`\n`    thread_yield ();`\n무엇이 문제일까?',
+    choices: ['스레드가 영원히 깨어나지 않는다', '잠든 게 아니라 READY 줄로 계속 돌아와서 "아직이야?"를 반복하며 CPU를 낭비한다', '인터럽트를 꺼서 시간이 멈춘다', 'sleep_list가 정렬되어 있지 않다'],
+    answer: 1,
+    explain: '`thread_yield()`는 CPU를 잠깐 양보할 뿐 스레드를 READY 상태로 둔다. 그래서 스케줄러가 계속 이 스레드를 다시 골라주고, 깨어날 때마다 시간만 확인하고 또 양보한다. 이게 바쁜 대기(busy waiting). 고친 뒤에는 BLOCKED로 만들어서 스케줄러가 아예 고르지 않게 한다.'
+  },
+  {
+    id: 'p1-02', topic: 'p1', concept: 'Alarm Clock', tier: 'core', level: 1, type: 'mc',
+    prompt: 'Alarm Clock에서 "깰 시간이 된 스레드를 깨우는 코드"는 어느 함수에 넣어야 할까?',
+    choices: ['`timer_sleep()`', '`timer_interrupt()`', '`schedule()`', '`thread_create()`'],
+    answer: 1,
+    explain: '`timer_interrupt()`는 매 틱마다 하드웨어 타이머가 불러주는 함수다. "지금 몇 틱인지"가 바뀌는 유일한 순간이라 여기서 sleep_list를 확인한다. `timer_sleep()`은 잠드는 쪽(자기 자신을 재우는 쪽) 함수.'
+  },
+  {
+    id: 'p1-03', topic: 'p1', concept: 'Alarm Clock', tier: 'core', level: 2, type: 'mc',
+    prompt: '지금 `ticks`가 200이다. 스레드 A가 `timer_sleep(30)`, 이어서 B가 `timer_sleep(10)`을 호출했다. sleep_list는 `compare_ticks`와 `list_insert_ordered`로 관리한다. 리스트 모양은?',
+    choices: ['A(230) → B(210)', 'B(210) → A(230)', 'A(30) → B(10)', 'B(10) → A(30)'],
+    answer: 1,
+    explain: '저장하는 값은 "몇 틱 동안"이 아니라 "몇 번째 틱에 깰지"(절대 시각)다.\nA: 200 + 30 = 230\nB: 200 + 10 = 210\n`compare_ticks`가 작은 값을 앞에 세우니까 B(210) → A(230). 맨 앞만 보면 가장 빨리 깰 스레드를 알 수 있다.'
+  },
+  {
+    id: 'p1-04', topic: 'p1', concept: 'Alarm Clock', tier: 'core', level: 2, type: 'mc',
+    prompt: '`timer_interrupt()`에서 깰 스레드를 sleep_list에서 꺼낸 다음, READY 상태로 만들고 ready_list에 넣어주는 함수는?',
+    choices: ['`thread_unblock()`', '`thread_yield()`', '`schedule()`', '`list_push_back(&ready_list, ...)` 한 줄이면 충분하다'],
+    answer: 0,
+    explain: '`thread_unblock()`은 상태를 BLOCKED → READY로 바꾸고 ready_list에 넣는 일을 한 번에 한다. ready_list에 직접 넣기만 하면 상태가 BLOCKED로 남아서 ASSERT에 걸린다. 짝을 기억하자: 재우기 = `thread_block()`, 깨우기 = `thread_unblock()`.'
+  },
+  {
+    id: 'p1-05', topic: 'p1', concept: '인터럽트 끄기 vs 락', tier: 'core', level: 2, type: 'ox',
+    prompt: '`timer_interrupt()` 안에서 sleep_list를 안전하게 다루려고 `lock_acquire()`로 락을 잡아도 된다.',
+    answer: false,
+    explain: '락이 이미 잡혀 있으면 `lock_acquire()`는 기다리면서 잠든다(`sema_down` → `thread_block`). 인터럽트 핸들러는 잠들 수 없다. `thread_block()` 맨 위에 `ASSERT (!intr_context ())`가 있는 이유. 그래서 핸들러와 같이 쓰는 sleep_list는 락 대신 인터럽트를 꺼서 보호한다.'
+  },
+  {
+    id: 'p1-06', topic: 'p1', concept: '인터럽트 끄기 vs 락', tier: 'core', level: 3, type: 'explain',
+    prompt: '`timer_sleep()`에서 sleep_list에 넣고 `thread_block()`을 부르기 전에 인터럽트를 꺼야(`intr_disable()`) 하는 이유는 무엇일까?',
+    keypoints: [
+      '`timer_interrupt()`도 같은 sleep_list를 건드린다',
+      '리스트에 끼워 넣는 도중(prev/next가 반만 연결된 상태)에 타이머 인터럽트가 끼어들면 리스트가 깨질 수 있다',
+      '인터럽트 핸들러는 잠들 수 없어서 락으로는 보호할 수 없다',
+      '`thread_block()`은 인터럽트가 꺼져 있어야 한다는 ASSERT가 있다',
+      '끝나면 `intr_set_level(old_level)`로 원래 상태로 되돌린다'
+    ],
+    explain: '같은 데이터를 "보통 코드"와 "인터럽트 핸들러"가 같이 쓰면, 보통 코드 쪽에서 인터럽트를 잠깐 끄는 것이 유일한 보호 방법이다. 락은 스레드끼리 보호할 때, 인터럽트 끄기는 핸들러와 공유할 때.'
+  },
+  {
+    id: 'p1-07', topic: 'p1', concept: 'Priority Scheduling', tier: 'core', level: 2, type: 'mc',
+    prompt: 'ready_list가 항상 우선순위 순서로 유지되려면, `list_push_back` 대신 `list_insert_ordered(..., compare_pr, NULL)`로 바꿔야 하는 두 함수는?',
+    choices: ['`thread_unblock()`, `thread_yield()`', '`thread_create()`, `thread_exit()`', '`schedule()`, `next_thread_to_run()`', '`timer_sleep()`, `timer_interrupt()`'],
+    answer: 0,
+    explain: 'ready_list에 스레드가 들어가는 입구는 두 곳뿐이다. BLOCKED에서 깨어날 때(`thread_unblock`), 실행 중에 양보할 때(`thread_yield`). 입구에서 줄을 맞춰 세우면 `next_thread_to_run()`은 맨 앞을 꺼내기만 하면 된다.'
+  },
+  {
+    id: 'p1-08', topic: 'p1', concept: 'Priority Scheduling', tier: 'core', level: 3, type: 'explain',
+    prompt: '우선순위 31로 실행 중인 스레드가 `thread_create()`로 우선순위 40인 스레드를 만들었다. 새 스레드가 바로 실행되려면 어디에 무엇을 추가해야 할까? 왜 `thread_unblock()` 안에서 바로 양보하지 않을까?',
+    keypoints: [
+      '`thread_create()`에서 `thread_unblock()`으로 ready_list에 넣은 뒤 선점 검사(`priority_yield`)를 부른다',
+      'ready_list 맨 앞의 priority가 현재보다 높으면 `thread_yield()`',
+      '`thread_set_priority()`로 내 우선순위를 낮췄을 때도 같은 검사가 필요하다',
+      '`thread_unblock()`은 인터럽트 핸들러 안에서도 불리고, 부르는 쪽이 원자적으로 이어서 할 일이 있을 수 있어서 거기서 바로 양보하면 안 된다'
+    ],
+    explain: '`thread_unblock()`의 원래 주석에 "실행 중인 스레드를 선점하지 않는다"고 적혀 있다. 예를 들어 `timer_interrupt()`가 스레드를 깨우는 도중 거기서 양보해버리면 핸들러가 중간에 멈춘다. 인터럽트 핸들러 안에서 양보가 필요하면 `intr_yield_on_return()`으로 "핸들러가 끝나면 양보"를 예약한다.'
+  },
+  {
+    id: 'p1-09', topic: 'p1', concept: '동기화 우선순위', tier: 'core', level: 2, type: 'ox',
+    prompt: '`sema_down()`에서 waiters에 `list_insert_ordered`로 우선순위 순서대로 넣었다면, `sema_up()`에서 꺼내기 전에 다시 정렬할 필요가 전혀 없다.',
+    answer: false,
+    explain: '`list_insert_ordered`는 넣는 순간에만 줄을 맞춘다. 기다리는 동안 Priority Donation으로 어떤 스레드의 우선순위가 올라가면 줄이 깨진다. 그래서 `sema_up()`에서 꺼내기 직전에 `list_sort`로 다시 세운다(또는 `list_max`로 가장 큰 것만 찾는다). priority-donate-sema가 이 경우를 검사한다.'
+  },
+  {
+    id: 'p1-10', topic: 'p1', concept: 'condvar 정렬', tier: 'good', level: 3, type: 'explain',
+    prompt: '조건 변수의 `cond->waiters`를 정렬할 때 `compare_pr` 대신 `compare_sema`를 따로 만들어야 하는 이유와, `cond_wait()`에서 넣을 때가 아니라 `cond_signal()`에서 정렬하는 이유를 설명해보자.',
+    keypoints: [
+      '`cond->waiters`의 원소는 `struct thread`가 아니라 `struct semaphore_elem`이다',
+      '`list_entry(e, struct semaphore_elem, elem)` → 그 안의 `semaphore.waiters` 맨 앞 스레드 → `priority` 순서로 찾아가야 한다',
+      '`cond_wait()`에서 넣는 순간에는 그 세마포어의 waiters가 아직 비어 있다 (`sema_down` 전이라서)',
+      '그래서 비교할 스레드가 생긴 뒤인 `cond_signal()`에서 정렬한다'
+    ],
+    explain: '`cond_wait()` 순서: `sema_init(&waiter.semaphore, 0)` → `list_push_back(&cond->waiters, &waiter.elem)` → `lock_release` → `sema_down(&waiter.semaphore)`. 스레드가 세마포어 waiters에 들어가는 건 마지막 줄이라, 넣는 시점의 `compare_sema`는 빈 리스트의 맨 앞을 보려다 문제가 생긴다.'
+  },
+  {
+    id: 'p1-11', topic: 'p1', concept: 'Priority Donation', tier: 'core', level: 1, type: 'mc',
+    prompt: '낮은 L(10)이 락을 쥐고 있고 높은 H(30)가 그 락을 기다린다. 중간 M(20)이 계속 실행돼서 H가 오래 기다리는 우선순위 역전 상황이다. Priority Donation에서 누가 무엇을 주는가?',
+    choices: ['H가 L에게 우선순위를 빌려준다. 락은 계속 L이 쥐고 있다', 'L이 H에게 락을 넘겨준다', 'M의 우선순위를 강제로 낮춘다', 'H가 L의 락을 빼앗는다'],
+    answer: 0,
+    explain: '락의 주인은 바뀌지 않는다. L이 H의 우선순위 30을 빌려 M(20)보다 먼저 실행되고, 빨리 일을 끝내 락을 푼다. 락을 풀면 L은 원래 10으로 돌아가고 H가 락을 얻는다. "빌려주는 것은 우선순위, 주인은 그대로"가 핵심.'
+  },
+  {
+    id: 'p1-12', topic: 'p1', concept: 'Priority Donation', tier: 'core', level: 2, type: 'mc',
+    prompt: '`struct thread`에 이미 `elem`이 있는데, 기부자 목록(donations)에 넣을 `donation_elem`을 따로 만드는 이유는?',
+    choices: ['`elem`은 크기가 작아서', '기부하는 스레드는 그 순간 `elem`으로 이미 락 세마포어의 waiters에 들어가 있고, `list_elem` 하나는 한 리스트에만 연결될 수 있어서', 'donations 리스트는 정렬이 필요 없어서', '`list_entry`가 `elem`을 지원하지 않아서'],
+    answer: 1,
+    explain: '`list_elem`에는 `prev`, `next` 포인터가 한 쌍뿐이다. 같은 `elem`을 두 번째 리스트에 넣으면 첫 번째 리스트의 연결이 덮어써져 깨진다. 기부자는 "락을 기다리는 줄"(elem)과 "누군가의 기부자 목록"(donation_elem)에 동시에 있어야 하니까 두 개가 필요하다.'
+  },
+  {
+    id: 'p1-13', topic: 'p1', concept: 'Priority Donation', tier: 'core', level: 3, type: 'mc',
+    prompt: 'L(10)이 락 A를 쥐고 있다. M(20)은 락 B를 쥐고 있고, 락 A를 기다리는 중이다. 이제 H(30)가 락 B를 요청했다. 기부가 끝난 뒤 L과 M의 우선순위는?',
+    choices: ['L = 10, M = 30', 'L = 30, M = 30', 'L = 20, M = 30', 'L = 10, M = 20'],
+    answer: 1,
+    explain: '중첩 기부(nested donation). `lock_acquire`가 사슬을 따라간다.\n1) H가 B를 기다림 → B의 holder는 M → M = 30\n2) M의 `wait_on_lock`은 A → A의 holder는 L → L = 30\n3) L의 `wait_on_lock`은 NULL → 멈춤\nM만 올리면 M은 여전히 L을 기다리는데 L은 10이라 M(20)보다 낮은 스레드들에게 밀린다. 그래서 사슬 끝까지 전달해야 한다(최대 8단계).'
+  },
+  {
+    id: 'p1-14', topic: 'p1', concept: 'Priority Donation', tier: 'core', level: 3, type: 'explain',
+    prompt: 'L(원래 10)이 락 A와 B를 둘 다 쥐고 있다. M(20)은 A를, H(30)는 B를 기다린다. 지금 L은 30이다. L이 B를 해제하면 L의 우선순위는 몇이 되고, 그다음 A를 해제하면 몇이 될까? `lock_release()`가 하는 일과 함께 설명해보자.',
+    keypoints: [
+      '해제하는 락을 기다리던 기부자만 donations에서 뺀다 (`t->wait_on_lock == lock`인 것)',
+      'B 해제: H가 빠지고 M만 남는다 → L = max(10, 20) = 20',
+      'A 해제: M도 빠져서 기부자가 없다 → L = 원래 값 10',
+      '재계산은 정렬이 아니라 `init_priority`에서 시작해 남은 기부자 중 최댓값 찾기'
+    ],
+    explain: '이게 priority-donate-multiple 상황이다. 기부자를 전부 지우면 B만 풀었는데 10으로 떨어져서, A를 기다리는 M(20)에게 받은 기부가 사라지는 버그가 생긴다. "어떤 락 때문에 받은 기부인지"를 `wait_on_lock`으로 구분하는 이유.'
+  },
+  {
+    id: 'p1-15', topic: 'p1', concept: 'Priority Donation', tier: 'core', level: 2, type: 'mc',
+    prompt: '원래 우선순위가 31이고 지금 기부를 받아 40인 스레드가 `thread_set_priority(20)`을 호출했다. 올바른 처리는?',
+    choices: ['`priority`를 바로 20으로 바꾼다', '`init_priority`를 20으로 바꾸고, `priority`는 max(20, 남은 기부자들)로 다시 계산한다', '기부를 받는 중이니 아무것도 바꾸지 않는다', '기부자 목록을 비우고 20으로 바꾼다'],
+    answer: 1,
+    explain: '기부받는 중에는 계속 40이어야 하고(락을 빨리 풀어야 하니까), 락을 다 풀면 31이 아니라 새 값 20으로 돌아가야 한다. `priority`만 바꾸면 priority-donate-lower가 실패하고, `printf` 안의 콘솔 락을 풀 때 재계산되며 값이 엉뚱하게 바뀌어 priority-donate-chain도 깨진다.'
+  },
+  {
+    id: 'p1-16', topic: 'p1', concept: 'Priority Donation', tier: 'good', level: 2, type: 'ox',
+    prompt: '`lock_acquire()`에서 `sema_down()`이 끝나 락을 얻은 다음에는 `wait_on_lock`을 NULL로 비워야 한다.',
+    answer: true,
+    explain: '이제 그 락을 기다리지 않으니까. 비우지 않으면 나중에 누가 나에게 기부할 때 중첩 기부가 이미 끝난 사슬을 따라가 엉뚱한 스레드의 우선순위를 올린다. 순서: `sema_down` → `wait_on_lock = NULL` → `lock->holder = thread_current()`.'
+  },
+  {
+    id: 'p1-17', topic: 'p1', concept: 'MLFQS', tier: 'later', level: 2, type: 'mc',
+    prompt: 'MLFQS의 우선순위 공식은 `priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)`이다. `PRI_MAX = 63`, `recent_cpu = 8`, `nice = 2`이면 priority는?',
+    choices: ['57', '59', '55', '61'],
+    answer: 0,
+    explain: '1) recent_cpu / 4 = 8 / 4 = 2\n2) nice × 2 = 2 × 2 = 4\n3) 63 − 2 − 4 = 57\nCPU를 많이 쓸수록(recent_cpu↑), 양보를 많이 할수록(nice↑) 우선순위가 내려간다. 4틱마다 모든 스레드에 대해 다시 계산한다.'
+  },
+  {
+    id: 'p1-18', topic: 'p1', concept: 'MLFQS', tier: 'later', level: 2, type: 'ox',
+    prompt: '`thread_mlfqs`가 켜져 있으면 Priority Donation을 하지 않고, `thread_set_priority()`도 무시한다.',
+    answer: true,
+    explain: 'MLFQS에서는 우선순위를 스케줄러가 공식으로 계산한다. 누가 빌려주거나 직접 정하면 공식과 충돌하니까 둘 다 끈다.'
+  },
+  {
+    id: 'p1-19', topic: 'p1', concept: '고정소수점', tier: 'later', level: 2, type: 'mc',
+    prompt: '핀토스 커널은 부동소수점을 쓰지 않아서 17.14 고정소수점(정수 하나에 소수점 아래 14비트)으로 실수를 표현한다. 1.5는 어떤 정수로 저장될까? (2¹⁴ = 16384)',
+    choices: ['24576', '15', '16384', '3'],
+    answer: 0,
+    explain: '고정소수점 값 = 실수 × 2¹⁴.\n1.5 × 16384 = 24576.\n1.0은 16384. 두 고정소수점 수를 곱하면 2¹⁴가 두 번 곱해지니까 결과를 16384로 한 번 나눠야 한다(`x * y / f`). 이 규칙만 기억하면 fixed-point.h를 직접 짤 수 있다.'
+  },
+
+  // ───────────────────────── 핀토스 User Programs ─────────────────────────
+  {
+    id: 'p2-01', topic: 'p2', concept: 'Argument Passing', tier: 'core', level: 1, type: 'mc',
+    prompt: '`pintos -- run "args-single onearg"`를 실행하면 처음 받은 코드에서는 프로그램이 로드조차 안 된다. 왜일까?',
+    choices: ['`load()`가 "args-single onearg" 전체를 하나의 파일 이름으로 열려고 해서', 'args-single 파일이 디스크에 없어서', '`process_wait()`이 구현되지 않아서', '`syscall_handler()`가 비어 있어서'],
+    answer: 0,
+    explain: '그런 이름의 파일은 없으니 `filesys_open`이 실패한다. 그래서 `process_exec()`에서 `strtok_r`로 공백 기준으로 자르고, 첫 단어("args-single")만 파일 이름으로 `load()`에 넘긴다. 나머지 단어는 인자로 스택에 쌓는다.'
+  },
+  {
+    id: 'p2-02', topic: 'p2', concept: 'Argument Passing', tier: 'core', level: 2, type: 'mc',
+    prompt: '유저 스택에 인자를 쌓는 순서로 맞는 것은? (먼저 쌓는 것 = 높은 주소)',
+    choices: ['argv 주소들 → 문자열 → NULL → 패딩 → 가짜 리턴 주소', '문자열 → 8바이트 정렬 패딩 → argv[argc] = NULL → argv[argc-1] ~ argv[0] 주소 → 가짜 리턴 주소', '가짜 리턴 주소 → argv 주소들 → 문자열', '문자열 → argc → argv → 가짜 리턴 주소'],
+    answer: 1,
+    explain: '`argv`는 "문자열이 있는 곳의 주소"를 담는 포인터 배열이다. 그래서 문자열을 먼저 놓아서 주소를 확정한 뒤, 그 주소들로 배열을 만든다. 배열은 `argv[0]`이 가장 낮은 주소에 오도록 오른쪽 인자부터 쌓는다. 마지막 가짜 리턴 주소 0은 main이 "누가 나를 call했다"고 믿게 하는 모양 맞추기.'
+  },
+  {
+    id: 'p2-03', topic: 'p2', concept: 'Argument Passing', tier: 'core', level: 3, type: 'mc',
+    prompt: '"args-single onearg"를 쌓는다. 스택 꼭대기는 `0x47480000`.\n· "onearg\\0" (7바이트) → `0x4747FFF9`\n· "args-single\\0" (12바이트) → `0x4747FFED`\n이어서 8바이트 정렬, `argv[2] = NULL`, `argv[1]`, `argv[0]`, 가짜 리턴 주소를 각각 8바이트씩 쌓는다. `rsi`에 넣을 값은?',
+    choices: ['`0x4747FFD0`', '`0x4747FFC8`', '`0x4747FFED`', '`0x4747FFE0`'],
+    answer: 0,
+    explain: '1) 정렬: 0x4747FFED → 8의 배수로 내림 → 0x4747FFE8 (패딩 5바이트)\n2) NULL: 0x4747FFE0\n3) argv[1] = 0x4747FFF9 → 0x4747FFD8에 저장\n4) argv[0] = 0x4747FFED → 0x4747FFD0에 저장\n5) 가짜 리턴 주소 0 → 0x4747FFC8 (여기가 최종 rsp)\nrsi = argv 배열의 시작 = argv[0]이 있는 칸 = 0x4747FFD0 = rsp + 8. rdi = argc = 2.'
+  },
+  {
+    id: 'p2-04', topic: 'p2', concept: 'Argument Passing', tier: 'core', level: 2, type: 'ox',
+    prompt: 'x86-64 핀토스에서 argc와 argv는 스택에 push하고, main이 스택에서 꺼내 읽는다.',
+    answer: false,
+    explain: '64비트 호출 규약에서 첫 번째, 두 번째 인자는 레지스터로 전달된다. `_if.R.rdi = argc`, `_if.R.rsi = argv 주소`. 32비트 핀토스 자료(옛 슬라이드)는 스택에 push하는 그림이라 헷갈리기 쉽다.'
+  },
+  {
+    id: 'p2-05', topic: 'p2', concept: 'Argument Passing', tier: 'core', level: 2, type: 'mc',
+    prompt: '테스트가 기대하는 출력은 `args-single: exit(0)`인데 `args-single onearg: exit(0)`이 찍힌다. 종료 메시지의 이름은 어디서 오고, 어디를 고쳐야 할까?',
+    choices: ['`thread_current()->name`에서 온다. 스레드를 만들 때(`process_create_initd`의 `thread_create`) 넘긴 이름을 첫 단어로 잘라야 한다', '`printf` 형식 문자열을 바꾼다', '`load()`가 이름을 정하니 `load()`를 고친다', '`syscall_handler()`의 switch를 고친다'],
+    answer: 0,
+    explain: '`printf("%s: exit(%d)\\n", thread_current()->name, status)`에서 이름은 스레드가 태어날 때 받은 문자열이다. 첫 프로세스는 `process_create_initd(file_name)`이 명령어 전체를 이름으로 넘기니까 거기서 첫 단어만 넘긴다. exec로 다른 프로그램이 될 때도 이름을 그 프로그램 이름으로 맞춰야 한다.'
+  },
+  {
+    id: 'p2-06', topic: 'p2', concept: '시스템 콜 핸들러', tier: 'core', level: 1, type: 'mc',
+    prompt: '`syscall_handler(struct intr_frame *f)`에서 "몇 번 시스템 콜인지"는 어디에 들어 있을까?',
+    choices: ['`f->R.rax`', '`f->R.rdi`', '`f->R.rsi`', '`f->rsp`'],
+    answer: 0,
+    explain: '번호는 rax, 인자는 순서대로 `rdi, rsi, rdx, r10, r8, r9`, 반환값은 다시 rax에 넣는다. 예: `write(1, buf, 5)` → rax = SYS_WRITE, rdi = 1, rsi = buf, rdx = 5. 처리 후 `f->R.rax = 쓴 바이트 수`.'
+  },
+  {
+    id: 'p2-07', topic: 'p2', concept: '시스템 콜 핸들러', tier: 'core', level: 3, type: 'explain',
+    prompt: '`syscall_handler()`의 `case SYS_FORK:`에서 `lib/user/syscall.c`에 있는 `fork()`를 부르면 안 되는 이유와, 대신 무엇을 불러야 하는지 설명해보자.',
+    keypoints: [
+      '`lib/user/syscall.c`의 함수들은 유저 프로그램 쪽 함수다. 레지스터에 번호와 인자를 넣고 `syscall` 명령으로 커널에 들어가는 "주문 벨"',
+      '커널 코드는 이미 커널 안(주방)이라 다시 주문 벨을 누를 이유가 없다',
+      '커널 쪽 짝을 부른다: `fork` → `process_fork`, `wait` → `process_wait`, `exec` → `process_exec`',
+      '인자는 `f->R.rdi` 등에서 꺼내고, 결과는 `f->R.rax`에 넣는다'
+    ],
+    explain: '이름이 같은 함수가 두 세계에 있어서 헷갈리는 것. 유저: `fork()`, `wait()`, `exit()` / 커널: `process_fork()`, `process_wait()`, 직접 만든 exit 처리 함수. syscall.c 안에서 유저 쪽 이름을 부르고 있다면 거의 항상 실수다.'
+  },
+  {
+    id: 'p2-08', topic: 'p2', concept: '시스템 콜 핸들러', tier: 'core', level: 2, type: 'mc',
+    prompt: '테스트 결과에서 `open()`의 반환값이 하필 SYS_OPEN 번호와 같은 숫자로 나왔다. 가장 유력한 원인은?',
+    choices: ['처리한 결과를 `f->R.rax`에 넣지 않았다', 'fd 테이블이 가득 찼다', '파일 이름이 잘못됐다', '`filesys_lock`을 안 잡았다'],
+    answer: 0,
+    explain: 'rax에는 처음에 시스템 콜 번호가 들어 있다. 결과를 덮어쓰지 않고 돌아가면 유저 프로그램은 번호를 반환값으로 받는다. "반환값 = 시스템 콜 번호"는 rax를 안 채웠다는 강한 신호.'
+  },
+  {
+    id: 'p2-09', topic: 'p2', concept: '유저 메모리 검사', tier: 'core', level: 2, type: 'mc',
+    prompt: '유저가 넘긴 포인터를 커널이 쓰기 전에 확인할 것에 해당하지 않는 것은?',
+    choices: ['NULL인지', '유저 영역 주소인지 (`is_user_vaddr`)', '실제로 매핑된 페이지인지 (`pml4_get_page`)', '주소가 8의 배수인지'],
+    answer: 3,
+    explain: '세 가지 검사 중 하나라도 실패하면 그 프로세스를 `exit(-1)`. 커널 영역 주소를 통과시키면 유저가 커널 메모리를 읽거나 덮어쓰게 되고, 매핑 안 된 주소는 커널에서 페이지 폴트를 낸다. 정렬은 문자열이나 바이트 버퍼에는 필요 없다.'
+  },
+  {
+    id: 'p2-10', topic: 'p2', concept: '유저 메모리 검사', tier: 'core', level: 2, type: 'ox',
+    prompt: '유저 프로그램이 잘못된 포인터를 넘기면 커널은 PANIC으로 멈추는 것이 맞는 동작이다.',
+    answer: false,
+    explain: '유저 프로그램의 실수로 OS 전체가 죽으면 안 된다. 그 프로세스만 `exit(-1)`로 끝내고 커널은 계속 돈다. 이때도 `이름: exit(-1)` 메시지가 찍혀야 하니까 종료 메시지 출력은 정상 exit와 같은 경로에 둔다.'
+  },
+  {
+    id: 'p2-11', topic: 'p2', concept: '유저 메모리 검사', tier: 'good', level: 3, type: 'explain',
+    prompt: '`read(fd, buf, 100)`에서 `buf`의 시작 주소만 검사하면 부족한 이유는 무엇일까?',
+    keypoints: [
+      '버퍼는 시작 주소부터 100바이트 범위 전체다',
+      '버퍼가 페이지 경계에 걸쳐 두 페이지 이상일 수 있다',
+      '시작은 유효해도 끝(`buf + size - 1`)이 매핑 안 됐거나 커널 영역일 수 있다',
+      '걸쳐 있는 페이지를 모두 확인하거나, 페이지 폴트에서 `exit(-1)`로 처리한다'
+    ],
+    explain: '예: 페이지 크기 4096, buf = 0x...FFF0이면 앞 16바이트만 이 페이지이고 나머지 84바이트는 다음 페이지다. 다음 페이지가 없으면 커널이 쓰다가 페이지 폴트. `*-boundary` 테스트가 이 경우를 노린다.'
+  },
+  {
+    id: 'p2-12', topic: 'p2', concept: '파일 시스템 콜', tier: 'core', level: 1, type: 'mc',
+    prompt: '프로세스가 처음으로 `open()`에 성공했을 때 받는 fd 번호는?',
+    choices: ['0', '1', '2', '3'],
+    answer: 2,
+    explain: '0번은 키보드 입력(STDIN), 1번은 화면 출력(STDOUT)으로 예약되어 있다. 그래서 fd 테이블에서 새 파일은 2번부터 빈 칸을 찾아 넣는다. 같은 파일을 두 번 열면 fd도 두 개가 따로 나온다.'
+  },
+  {
+    id: 'p2-13', topic: 'p2', concept: '파일 시스템 콜', tier: 'core', level: 2, type: 'mc',
+    prompt: '`write(1, buf, n)`, 즉 fd 1(화면)에 쓰는 요청은 커널에서 어떤 함수로 처리할까?',
+    choices: ['`putbuf(buf, n)`', '`file_write()`', '`printf()`', '`input_getc()`'],
+    answer: 0,
+    explain: 'fd 1은 실제 파일이 아니라 콘솔이라 `struct file *`이 없다. `putbuf()`로 한 번에 출력한다. 반대로 fd 0 읽기는 `input_getc()`로 키보드에서 한 글자씩. 나머지 fd만 `file_read` / `file_write`.'
+  },
+  {
+    id: 'p2-14', topic: 'p2', concept: '파일 시스템 콜', tier: 'good', level: 2, type: 'ox',
+    prompt: '핀토스의 파일 시스템 코드는 내부에 동기화가 없어서, 파일 시스템 함수를 부를 때는 전역 락(`filesys_lock`)으로 감싸야 한다.',
+    answer: true,
+    explain: '여러 프로세스가 동시에 같은 파일 시스템 구조를 고치면 꼬인다. Project 1에서 만든 락을 그대로 쓴다. syn-read, syn-write, syn-remove 테스트가 이 부분을 검사한다.'
+  },
+  {
+    id: 'p2-15', topic: 'p2', concept: 'fork', tier: 'core', level: 3, type: 'explain',
+    prompt: '`process_fork()`에서 부모가 자식의 복제(`__do_fork`)가 끝날 때까지 기다려야 하는 이유는 무엇이고, 어떻게 기다리게 만들까?',
+    keypoints: [
+      '부모는 fork 성공(자식 pid)인지 실패(-1)인지 알아야 반환값을 정할 수 있다',
+      '부모가 먼저 유저 모드로 돌아가 실행을 계속하면, 복사 중인 메모리가 바뀔 수 있다',
+      '세마포어(`fork_sema`, 0으로 초기화): 부모가 `sema_down`으로 잠든다',
+      '자식은 `__do_fork` 끝에서 성공이든 실패든 `sema_up`으로 부모를 깨운다'
+    ],
+    explain: 'Project 1에서 배운 "재웠다가 깨우기"를 그대로 쓴다. 실패했을 때 `sema_up`을 빼먹으면 부모가 영원히 잠든다. 바쁜 대기(while로 확인)는 부모가 CPU를 잡고 있어서 자식이 복제할 시간을 뺏는다.'
+  },
+  {
+    id: 'p2-16', topic: 'p2', concept: 'fork', tier: 'core', level: 2, type: 'mc',
+    prompt: '`fork()`는 부모에게 자식 pid를, 자식에게 0을 돌려준다. 자식 쪽 반환값 0은 `__do_fork()`에서 어떻게 만들까?',
+    choices: ['복사한 intr_frame에 `if_.R.rax = 0`', '`f->R.rdi = 0`', '`thread_current()->tid = 0`', '`process_fork()`에서 `return 0`'],
+    answer: 0,
+    explain: '자식은 부모의 레지스터 상태(intr_frame)를 복사해서 시작하니까, 그대로 두면 rax도 부모와 같다. 자식이 유저 모드로 돌아갈 때 rax가 fork의 반환값이 되므로 rax만 0으로 바꾼다. 부모의 반환값(자식 tid)은 `syscall_handler`에서 `f->R.rax`에 넣는다.'
+  },
+  {
+    id: 'p2-17', topic: 'p2', concept: 'fork', tier: 'good', level: 2, type: 'mc',
+    prompt: '시스템 콜 fork를 처리할 때 `thread_current()->tf`가 아니라 `syscall_handler`의 인자 `f`를 `process_fork()`에 넘겨야 하는 이유는?',
+    choices: ['시스템 콜로 커널에 들어올 때 유저의 레지스터 상태는 `f`에 저장되고, `tf`는 유저 상태가 아니기 때문', '`tf`는 읽기 전용이라서', '`f`가 더 작아서 복사가 빠르다', '둘은 항상 같은 값이라 상관없다'],
+    answer: 0,
+    explain: '자식은 "부모가 fork를 부른 바로 그 순간의 유저 상태"에서 출발해야 한다. 그 상태는 시스템 콜 진입 때 커널 스택에 만들어진 intr_frame(`f`)에 있다. `thread->tf`는 스케줄러가 스레드를 처음 실행하거나 전환할 때 쓰는 값이라 지금의 유저 레지스터가 아니다. 그래서 `f`를 넘겨 `parent_if`로 복사한다.'
+  },
+  {
+    id: 'p2-18', topic: 'p2', concept: 'fork', tier: 'good', level: 2, type: 'mc',
+    prompt: '`duplicate_pte()`에서 부모의 유저 페이지 하나를 자식에게 복제하는 올바른 방법은?',
+    choices: ['`palloc_get_page(PAL_USER)`로 새 페이지를 받아 `memcpy`로 내용을 복사하고, `pml4_set_page`로 같은 가상 주소에 매핑한다 (writable 여부 유지)', '부모 페이지의 물리 주소를 자식 pml4에 그대로 매핑한다', '커널 영역 페이지까지 전부 새로 복사한다', '빈 페이지만 매핑하고 내용은 나중에 채운다'],
+    answer: 0,
+    explain: '같은 물리 페이지를 공유하면 자식이 값을 바꿀 때 부모 메모리도 바뀐다(fork는 독립된 복사본이어야 한다). 커널 영역은 모든 프로세스가 공유하니까 `is_kernel_vaddr(va)`면 복사하지 않고 `true`를 반환해 건너뛴다. `pml4_for_each`가 부모의 페이지마다 이 함수를 불러준다.'
+  },
+  {
+    id: 'p2-19', topic: 'p2', concept: 'exec', tier: 'core', level: 3, type: 'explain',
+    prompt: '`exec(cmd_line)`을 처리할 때 `cmd_line` 문자열을 커널 페이지에 복사한 다음 `process_exec()`에 넘겨야 하는 이유는 무엇일까?',
+    keypoints: [
+      '`cmd_line`은 유저 메모리(현재 프로세스 주소 공간)에 있는 문자열이다',
+      '`process_exec()`은 `process_cleanup()`으로 현재 주소 공간을 지운다',
+      '지운 뒤에 `load()`가 파일 이름을 읽으면 이미 사라진 메모리를 읽는다',
+      '`palloc_get_page()`로 받은 커널 페이지에 `strlcpy`로 복사해서 넘긴다'
+    ],
+    explain: 'exec는 "지금 나를 버리고 새 프로그램이 된다". 버리는 대상에 인자 문자열도 들어 있다는 게 함정. 성공하면 `process_exec()`은 돌아오지 않고, 돌아왔다면 실패니까 `exit(-1)`.'
+  },
+  {
+    id: 'p2-20', topic: 'p2', concept: 'wait', tier: 'core', level: 3, type: 'explain',
+    prompt: '부모가 `wait(child)`를 부르기 전에 자식이 이미 `exit(3)`으로 끝났다. 그래도 부모가 3을 받을 수 있으려면 어떤 구조가 필요할까?',
+    keypoints: [
+      '자식은 종료 상태를 자기 구조체의 `exit_status`에 저장하고 `wait_sema`를 `sema_up`',
+      '자식은 부모가 값을 가져갈 때까지 자기 구조체를 바로 해제하지 않고 기다린다 (다른 세마포어로)',
+      '세마포어는 값을 기억하니까, 부모가 나중에 `sema_down(wait_sema)`를 해도 바로 통과한다',
+      '부모는 `exit_status`를 읽고, 자식 리스트에서 빼고, 자식에게 정리해도 된다고 `sema_up`'
+    ],
+    explain: '자식 구조체가 먼저 해제되면 부모가 읽을 `exit_status`가 사라진다(댕글링 포인터). 그래서 "부모가 회수할 때까지 자식은 남아 있는다"는 약속이 필요하다. 실제 OS의 좀비 프로세스가 바로 이 상태.'
+  },
+  {
+    id: 'p2-21', topic: 'p2', concept: 'wait', tier: 'core', level: 2, type: 'ox',
+    prompt: '같은 자식에 대해 `wait()`를 두 번째로 호출하면 -1을 반환해야 한다.',
+    answer: true,
+    explain: '첫 wait에서 종료 상태를 회수하면서 자식을 자식 리스트에서 뺐으니, 두 번째에는 "내 직속 자식"으로 찾을 수 없다 → -1. 내 자식이 아닌 pid(손자, 남의 자식)를 wait해도 -1. wait-twice, wait-bad-pid 테스트.'
+  },
+  {
+    id: 'p2-22', topic: 'p2', concept: '실행 파일 쓰기 금지', tier: 'good', level: 2, type: 'mc',
+    prompt: '`load()`에서 실행 파일에 `file_deny_write()`를 걸었는데, `load()` 마지막의 `file_close(file)`을 그대로 두면 어떻게 될까?',
+    choices: ['파일이 닫히면서 쓰기 금지도 풀려 rox 테스트가 실패한다', '아무 문제 없다', '커널 패닉이 난다', '실행 파일이 삭제된다'],
+    answer: 0,
+    explain: '`file_close()`는 안에서 `file_allow_write()`를 부른다. 그래서 실행 파일은 프로세스가 끝날 때까지 열어둬야 한다. `struct thread`에 보관해두고 `process_exit()`에서 닫는다.'
+  },
+  {
+    id: 'p2-23', topic: 'p2', concept: '자원 정리', tier: 'good', level: 3, type: 'explain',
+    prompt: '프로세스가 끝날 때(`process_exit`) 정리해야 하는 것들을 말해보자. 빼먹으면 어떤 테스트에서 드러날까?',
+    keypoints: [
+      '열린 fd를 모두 `file_close`하고 fd 테이블 메모리를 해제한다',
+      '보관해둔 실행 파일을 닫는다 (쓰기 금지 해제)',
+      '부모를 깨우고, 부모가 회수한 뒤 자기 구조체가 해제되게 한다',
+      '아직 wait 안 된 자식들이 부모 없이 남아도 정리될 수 있게 한다',
+      '조금씩 새는 자원은 multi-oom처럼 fork를 많이 반복하는 테스트에서 드러난다'
+    ],
+    explain: '한 번 실행에서는 티가 안 나는 누수도 수백 번 반복하면 메모리나 fd가 바닥난다. multi-oom은 "몇 번째 fork까지 성공했나"를 실행마다 비교해서 누수를 잡는다.'
+  }
+);
